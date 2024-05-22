@@ -16,3 +16,4 @@ class SearchFiltersDiffUtil : DiffUtil.ItemCallback<FilterCountryGenre>() {
         newItem: FilterCountryGenre
     ) = oldItem == newItem
 }
+

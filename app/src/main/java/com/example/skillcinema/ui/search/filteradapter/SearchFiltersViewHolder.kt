@@ -5,3 +5,4 @@ import com.example.skillcinema.databinding.ItemSearchFiltersBinding
 
 class SearchFiltersViewHolder(val binding: ItemSearchFiltersBinding) :
     RecyclerView.ViewHolder(binding.root)
+

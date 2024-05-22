@@ -15,42 +15,38 @@ import com.example.skillcinema.ui.adapters.holders.ItemSearchPersonViewHolder
 class MyPagingAdapter(
     private val onClick: (Int) -> Unit
 ) : PagingDataAdapter<MyAdapterTypes, RecyclerView.ViewHolder>(MyDiffUtil()) {
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        val inflater = LayoutInflater.from(parent.context)
         return when (viewType) {
             R.layout.item_film -> {
-                ItemFilmViewHolder(
-                    ItemFilmBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-                )
+                ItemFilmViewHolder(ItemFilmBinding.inflate(inflater, parent, false))
             }
             R.layout.item_search_film -> {
-                ItemSearchFilmViewHolder(
-                    ItemSearchFilmBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-                )
+                ItemSearchFilmViewHolder(ItemSearchFilmBinding.inflate(inflater, parent, false))
             }
             R.layout.item_search_person -> {
-                ItemSearchPersonViewHolder(
-                    ItemSearchPersonBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-                )
+                ItemSearchPersonViewHolder(ItemSearchPersonBinding.inflate(inflater, parent, false))
             }
-            else -> throw Exception("onCreateViewHolder - Unknown ViewType")
+            else -> throw IllegalArgumentException("Unknown ViewType: $viewType")
         }
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         when (holder) {
             is ItemFilmViewHolder -> {
-                val item = getItem(position) as MyAdapterTypes.ItemFilmWithGenre
-                holder.bindItem(item) { onClick(it) }
+                val item = getItem(position) as? MyAdapterTypes.ItemFilmWithGenre
+                item?.let { holder.bindItem(it, onClick) }
             }
             is ItemSearchFilmViewHolder -> {
-                val item = getItem(position) as MyAdapterTypes.ItemSearchFilms
-                holder.bindItem(item) { onClick(it) }
+                val item = getItem(position) as? MyAdapterTypes.ItemSearchFilms
+                item?.let { holder.bindItem(it, onClick) }
             }
             is ItemSearchPersonViewHolder -> {
-                val item = getItem(position) as MyAdapterTypes.ItemSearchPersons
-                holder.bindItem(item) { onClick(it) }
+                val item = getItem(position) as? MyAdapterTypes.ItemSearchPersons
+                item?.let { holder.bindItem(it, onClick) }
             }
-            else -> throw Exception("onBindViewHolder - Unknown ViewType")
+            else -> throw IllegalArgumentException("Unknown ViewHolder type: ${holder.javaClass.simpleName}")
         }
     }
 
@@ -59,7 +55,7 @@ class MyPagingAdapter(
             is MyAdapterTypes.ItemFilmWithGenre -> R.layout.item_film
             is MyAdapterTypes.ItemSearchFilms -> R.layout.item_search_film
             is MyAdapterTypes.ItemSearchPersons -> R.layout.item_search_person
-            else -> 4
+            else -> throw IllegalArgumentException("Unknown item type at position $position")
         }
     }
 }

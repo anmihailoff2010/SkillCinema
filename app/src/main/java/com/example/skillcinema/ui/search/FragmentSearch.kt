@@ -3,9 +3,9 @@ package com.example.skillcinema.ui.search
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
-import android.view.View.OnFocusChangeListener
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.PopupMenu
@@ -30,7 +30,6 @@ import com.example.skillcinema.ui.adapters.MyPagingAdapter
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -62,9 +61,9 @@ class FragmentSearch : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        setAdapter()                // set adapter
-        setSearchString()           // set search string
-        getFilmList()               // set film list
+        setAdapter()
+        setSearchString()
+        observeViewModel()
 
         binding.searchFilterBtn.setOnClickListener { setSearchMenu(it) }
     }
@@ -82,39 +81,23 @@ class FragmentSearch : Fragment() {
     private fun setAdapter() {
         filmAdapter.addLoadStateListener { state ->
             val currentState = state.refresh
-            binding.searchFilmList.isVisible = currentState != LoadState.Loading
-            binding.loadingProgress.isVisible = currentState == LoadState.Loading
-            binding.searchProgressText.isVisible = currentState != LoadState.Loading
-            binding.searchProgressImage.isVisible = currentState == LoadState.Loading
-            when (currentState) {
-                is LoadState.Loading -> {
-                    binding.searchFilmList.isVisible = false
-                    binding.searchProgressGroup.isVisible = true
-                    binding.searchProgressText.isVisible = false
-                    binding.searchProgressImage.isVisible = true
-                }
-                is LoadState.NotLoading -> {
-                    binding.searchFilmList.isVisible = true
-                    binding.loadingProgress.isVisible = false
-                    binding.searchProgressText.isVisible = false
-                    binding.searchProgressImage.isVisible = false
-
-                }
-                else -> {
-                    binding.searchFilmList.isVisible = false
-                    binding.loadingProgress.isVisible = false
-                    binding.searchProgressText.isVisible = true
-                    binding.searchProgressImage.isVisible = true
-                }
+            val isLoading = currentState is LoadState.Loading
+            binding.searchFilmList.isVisible = !isLoading
+            binding.loadingProgress.isVisible = isLoading
+            binding.searchProgressText.isVisible = !isLoading
+            binding.searchProgressImage.isVisible = isLoading
+            if (currentState is LoadState.Error) {
+                binding.searchProgressText.text = getString(R.string.search_not_found)
+            } else {
+                binding.searchProgressText.text = ""
             }
         }
-        binding.searchFilmList.layoutManager =
-            GridLayoutManager(requireContext(), 2, GridLayoutManager.VERTICAL, false)
+        binding.searchFilmList.layoutManager = GridLayoutManager(requireContext(), 2)
         binding.searchFilmList.adapter = myMergeAdapter
     }
 
     private fun setSearchString() {
-        binding.searchMyField.onFocusChangeListener = OnFocusChangeListener { _, hasFocus ->
+        binding.searchMyField.onFocusChangeListener = View.OnFocusChangeListener { _, hasFocus ->
             binding.searchGroup.background = if (hasFocus) {
                 isEditFocused = true
                 ResourcesCompat.getDrawable(
@@ -128,44 +111,41 @@ class FragmentSearch : Fragment() {
         binding.searchClearBtn.setOnClickListener {
             binding.searchMyField.text?.clear()
             val newFilter = viewModel.getFiltersFull().copy(keyword = "")
-            viewModel.updateFiltersFull(filterFilm = newFilter)
+            viewModel.updateFiltersFull(newFilter)
         }
 
         viewLifecycleOwner.lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                binding.searchClearBtn.isVisible = viewModel.getFiltersFull().keyword.isNotEmpty()
-                binding.searchMyField.textChanges()
-                    .collect { state ->
-                        val keyword = binding.searchMyField.text.toString()
-                        if (state) {
-                            val newFilter = viewModel.getFiltersFull().copy(keyword = keyword)
-                            viewModel.updateFiltersFull(filterFilm = newFilter)
-                        }
-                    }
-            }
+            binding.searchMyField.textChanges()
+                .debounce(300)  // Debounce to limit frequent updates
+                .collect { state ->
+                    val keyword = binding.searchMyField.text.toString()
+                    val newFilter = viewModel.getFiltersFull().copy(keyword = keyword)
+                    viewModel.updateFiltersFull(newFilter)
+                }
         }
     }
 
-    private fun getFilmList() {
+    private fun observeViewModel() {
         viewLifecycleOwner.lifecycleScope.launch {
-            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.filterFlow.collect {
-                    personAdapter.refresh()
-                    filmAdapter.refresh()
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    viewModel.filterFlow.collect {
+                        personAdapter.refresh()
+                        filmAdapter.refresh()
+                        Log.d("FragmentSearch", "Filter applied, adapters refreshed")
+                    }
                 }
-            }
-        }
-        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.newFilms.collect {
-                    filmAdapter.submitData(it.map { film -> MyAdapterTypes.ItemSearchFilms(film) })
+                launch {
+                    viewModel.newFilms.collect { pagingData ->
+                        Log.d("FragmentSearch", "New films received")
+                        filmAdapter.submitData(pagingData.map { film -> MyAdapterTypes.ItemSearchFilms(film) })
+                    }
                 }
-            }
-        }
-        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.persons.collect {
-                    personAdapter.submitData(it.map { person -> MyAdapterTypes.ItemSearchPersons(person) })
+                launch {
+                    viewModel.persons.collect { pagingData ->
+                        Log.d("FragmentSearch", "New persons received")
+                        personAdapter.submitData(pagingData.map { person -> MyAdapterTypes.ItemSearchPersons(person) })
+                    }
                 }
             }
         }
@@ -175,27 +155,25 @@ class FragmentSearch : Fragment() {
         val popUpMenu = PopupMenu(requireContext(), view)
         popUpMenu.inflate(R.menu.search_menu)
 
-        popUpMenu
-            .setOnMenuItemClickListener { item ->
-                when (item.itemId) {
-                    R.id.search_settings_set -> {
-                        findNavController()
-                            .navigate(R.id.action_fragmentSearch_to_fragmentSearchSettings)
-                        true
-                    }
-                    R.id.search_filters_clear -> {
-                        viewModel.updateFiltersFull(ParamsFilterFilm())
-                        binding.searchMyField.text?.clear()
-                        Toast.makeText(
-                            requireActivity().applicationContext,
-                            getString(R.string.search_clear_message),
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        true
-                    }
-                    else -> false
+        popUpMenu.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.search_settings_set -> {
+                    findNavController().navigate(R.id.action_fragmentSearch_to_fragmentSearchSettings)
+                    true
                 }
+                R.id.search_filters_clear -> {
+                    viewModel.updateFiltersFull(ParamsFilterFilm())
+                    binding.searchMyField.text?.clear()
+                    Toast.makeText(
+                        requireActivity().applicationContext,
+                        getString(R.string.search_clear_message),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    true
+                }
+                else -> false
             }
+        }
 
         popUpMenu.show()
     }
@@ -209,29 +187,22 @@ class FragmentSearch : Fragment() {
         return callbackFlow {
             val watcher = object : TextWatcher {
                 override fun beforeTextChanged(
-                    s: CharSequence?,
-                    start: Int,
-                    count: Int,
-                    after: Int
+                    s: CharSequence?, start: Int, count: Int, after: Int
                 ) {
-                    trySend(false)
+                    // No operation
                 }
 
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                    binding.searchClearBtn.isVisible = !s.isNullOrEmpty()
-                    viewLifecycleOwner.lifecycleScope.launch {
-                        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                            trySend(false)
-                            delay(500)
-                            trySend(true)
-                        }
-                    }
+                    trySend(s?.isNotEmpty() == true)
                 }
 
-                override fun afterTextChanged(s: Editable?) {}
+                override fun afterTextChanged(s: Editable?) {
+                    // No operation
+                }
             }
             addTextChangedListener(watcher)
             awaitClose { removeTextChangedListener(watcher) }
-        }.onStart { emit(false) }
+        }.debounce(300)  // Debounce to limit frequent updates
+            .onStart { emit(false) }
     }
 }

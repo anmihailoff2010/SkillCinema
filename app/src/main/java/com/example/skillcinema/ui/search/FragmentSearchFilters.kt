@@ -110,3 +110,4 @@ class FragmentSearchFilters : Fragment() {
         const val KEY_GENRE = "genre"
     }
 }
+

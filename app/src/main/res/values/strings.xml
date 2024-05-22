@@ -44,7 +44,7 @@
     <string name="search_edittext_hint">Фильмы, актёры, режиссёры</string>
 
     <!-- Search fragment -->
-    <string name="search_not_found">К сожалению, по Вашему\nничего не найдено</string>
+    <string name="search_not_found">К сожалению, по Вашему запросу ничего не найдено</string>
     <string name="search_clear_message">Фильтр сброшен</string>
 
     <!-- Search setting fragment -->

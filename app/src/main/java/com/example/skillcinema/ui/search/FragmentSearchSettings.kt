@@ -194,3 +194,4 @@ class FragmentSearchSettings : Fragment() {
         _binding = null
     }
 }
+
