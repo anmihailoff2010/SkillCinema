@@ -28,7 +28,6 @@ import com.example.skillcinema.databinding.FragmentSearchBinding
 import com.example.skillcinema.ui.adapters.MyAdapterTypes
 import com.example.skillcinema.ui.adapters.MyPagingAdapter
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
